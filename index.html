@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Nagad Payment | ROMAN TOPUP BD</title>
+    <title>bKash Payment | ROMAN TOPUP BD</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Firebase V10 Modular SDK -->
     <script type="module">
@@ -36,7 +36,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const orderId = urlParams.get('orderId');
         const amount = urlParams.get('amount') || "0";
-        const method = "nagad"; // Fixed for this page
+        const method = "bkash"; // Fixed for this page
 
         // UI Setup
         amountSpan.innerText = amount;
@@ -59,7 +59,7 @@
             } catch(e) { console.error("Banner Error:", e); }
         };
 
-        // Load Nagad Payment Number from Firestore `paymentGateways`
+        // Load bKash Payment Number from Firestore `paymentGateways`
         const loadPaymentNumber = async () => {
             try {
                 const docRef = doc(db, "paymentGateways", method);
@@ -67,10 +67,10 @@
                 if(docSnap.exists() && docSnap.data().number) {
                     numberSpan.innerText = docSnap.data().number;
                 } else {
-                    numberSpan.innerText = '017XXXXXXXX'; // Fallback
+                    numberSpan.innerText = '018XXXXXXXX'; // Fallback
                 }
             } catch(e) { 
-                numberSpan.innerText = '017XXXXXXXX';
+                numberSpan.innerText = '018XXXXXXXX';
                 console.error("Number Error:", e);
             }
         };
@@ -157,10 +157,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,600;14..32,800&display=swap" rel="stylesheet">
     <style>
         * { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
-        /* Nagad Theme Colors */
-        .nagad-gradient { background: linear-gradient(135deg, #F5A623 0%, #d48a1a 100%); }
-        .nagad-border { border-color: #F5A623; }
-        .nagad-text { color: #F5A623; }
+        /* bKash Theme Colors */
+        .bkash-gradient { background: linear-gradient(135deg, #D12053 0%, #a51742 100%); }
+        .bkash-border { border-color: #D12053; }
+        .bkash-text { color: #D12053; }
         
         .toast-custom {
             visibility: hidden; min-width: 280px; background: #1e293b; color: white;
@@ -190,15 +190,15 @@
     <div class="max-w-md w-full">
         <div class="bg-white rounded-3xl shadow-2xl overflow-hidden">
             <!-- Header -->
-            <div class="nagad-gradient p-6 flex justify-between items-center">
+            <div class="bkash-gradient p-6 flex justify-between items-center">
                 <div class="flex items-center gap-2">
                     <div class="bg-white/20 backdrop-blur-sm p-2 rounded-xl">
-                        <!-- Nagad Icon (Simplified) -->
+                        <!-- bKash Icon (Simplified) -->
                         <svg class="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 4c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm0 13c-2.33 0-4.31-1.46-5.11-3.5h10.22c-.8 2.04-2.78 3.5-5.11 3.5z"/>
                         </svg>
                     </div>
-                    <span class="text-white font-black text-xl tracking-tight">Nagad Merchant</span>
+                    <span class="text-white font-black text-xl tracking-tight">bKash Merchant</span>
                 </div>
                 <div class="text-white text-right">
                     <p class="text-[10px] uppercase font-bold opacity-80 tracking-[0.15em]">Payable Amount</p>
@@ -229,11 +229,11 @@
 
                 <div class="px-6">
                     <!-- Info Alert -->
-                    <div class="bg-orange-50 border-l-[5px] nagad-border p-4 rounded-2xl mb-7">
+                    <div class="bg-pink-50 border-l-[5px] bkash-border p-4 rounded-2xl mb-7">
                         <div class="flex items-start gap-3">
-                            <span class="nagad-text text-xl">📌</span>
+                            <span class="bkash-text text-xl">📌</span>
                             <p class="text-xs font-semibold text-gray-700 leading-relaxed">
-                                <span class="font-black nagad-text">Send Money</span> করুন নিচের নম্বরে। টাকা পাঠানোর পর <span class="font-bold">TrxID</span> টি দিন।
+                                <span class="font-black bkash-text">Send Money</span> করুন নিচের নম্বরে। টাকা পাঠানোর পর <span class="font-bold">TrxID</span> টি দিন।
                             </p>
                         </div>
                     </div>
@@ -241,9 +241,9 @@
                     <!-- Personal Number -->
                     <div class="mb-8">
                         <label class="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-2 ml-1">পেমেন্ট নম্বর</label>
-                        <div onclick="copyNumber()" class="flex items-center justify-between bg-white p-5 rounded-2xl border-2 border-dashed border-orange-200 hover:border-[#F5A623] cursor-pointer transition-all active:scale-95">
+                        <div onclick="copyNumber()" class="flex items-center justify-between bg-white p-5 rounded-2xl border-2 border-dashed border-pink-200 hover:border-[#D12053] cursor-pointer transition-all active:scale-95">
                             <span id="display-number" class="text-3xl font-black tracking-tighter text-gray-800">লোড হচ্ছে...</span>
-                            <div class="nagad-gradient text-white p-2.5 rounded-xl">
+                            <div class="bkash-gradient text-white p-2.5 rounded-xl">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
                                 </svg>
@@ -255,10 +255,10 @@
                     <div class="space-y-6">
                         <div>
                             <label class="text-[11px] font-bold text-gray-400 uppercase ml-2 block mb-2 tracking-widest">Transaction ID (TrxID)</label>
-                            <input type="text" id="trx-input" placeholder="8N7A9X2K5L" class="w-full p-5 bg-gray-50 border-2 border-gray-200 focus:border-[#F5A623] focus:outline-none text-center font-mono font-bold text-xl uppercase rounded-2xl transition-all">
+                            <input type="text" id="trx-input" placeholder="8N7A9X2K5L" class="w-full p-5 bg-gray-50 border-2 border-gray-200 focus:border-[#D12053] focus:outline-none text-center font-mono font-bold text-xl uppercase rounded-2xl transition-all">
                         </div>
                         
-                        <button id="submit-btn" onclick="sendPayment()" class="w-full nagad-gradient text-white font-bold py-5 rounded-2xl shadow-lg uppercase text-sm tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2">
+                        <button id="submit-btn" onclick="sendPayment()" class="w-full bkash-gradient text-white font-bold py-5 rounded-2xl shadow-lg uppercase text-sm tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2">
                             Confirm & Submit
                         </button>
                     </div>
