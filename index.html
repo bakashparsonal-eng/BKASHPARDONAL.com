@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getFirestore, doc, getDoc, updateDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, setDoc, collection, query, where, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
         
         const firebaseConfig = {
             apiKey: "AIzaSyAV4PTJ2VU7uAfDU6hCVjXzBhcYMY-kyXc",
@@ -22,9 +22,16 @@
         const db = getFirestore(app);
 
         const urlParams = new URLSearchParams(window.location.search);
-        const orderId = urlParams.get('orderId') || "Direct Payment";
         const amount = urlParams.get('amount') || "0";
-        const method = "bkash";
+        const method = urlParams.get('method') || "bkash";
+        const reqType = urlParams.get('reqType') || "addMoney";
+        const orderId = urlParams.get('orderId') || null;
+        const userId = urlParams.get('userId') || "guest";
+        const userName = urlParams.get('userName') || "Guest User";
+        const offerId = urlParams.get('offerId') || "";
+        const offerName = urlParams.get('offerName') || "";
+        const offerImage = urlParams.get('offerImage') || "";
+        const playerUid = urlParams.get('playerUid') || "";
 
         const amountSpan = document.getElementById('display-amount');
         const numberSpan = document.getElementById('display-number');
@@ -35,59 +42,52 @@
         const paymentForm = document.getElementById('payment-form');
         const successScreen = document.getElementById('success-screen');
         const countdownDisplay = document.getElementById('countdown-display');
+        const gmailInput = document.getElementById('gmail-input');
 
         amountSpan.innerText = amount;
-        orderIdSpan.innerText = orderId;
+        orderIdSpan.innerText = orderId ? orderId.substring(0, 15) + '...' : "Direct Payment";
 
         const loadBanners = async () => {
             try {
-                const docRef = doc(db, "settings", "banners");
+                const docRef = doc(db, "paymentGateways", "bkash");
                 const docSnap = await getDoc(docRef);
                 if(docSnap.exists()) {
                     const data = docSnap.data();
                     let bannerHTML = '';
-                    for(let i=1; i<=6; i++) {
+                    // ৫টি ছবি লোড করার লুপ
+                    for(let i=1; i<=5; i++) {
                         const imgUrl = data[`img${i}`];
                         if(imgUrl) bannerHTML += `<img src="${imgUrl}" class="banner-img" alt="Step ${i}" onerror="this.style.display='none'">`;
                     }
                     bannerList.innerHTML = bannerHTML || '<p class="text-xs text-gray-400">ব্যানার পাওয়া যায়নি</p>';
-                }
-            } catch(e) { console.error("Banner Error:", e); }
-        };
-
-        const loadPaymentNumber = async () => {
-            try {
-                const docRef = doc(db, "paymentGateways", method);
-                const docSnap = await getDoc(docRef);
-                if(docSnap.exists() && docSnap.data().number) {
-                    numberSpan.innerText = docSnap.data().number;
+                    if(data.number) numberSpan.innerText = data.number;
                 } else {
                     numberSpan.innerText = '018XXXXXXXX';
                 }
-            } catch(e) { numberSpan.innerText = '018XXXXXXXX'; }
+            } catch(e) { console.error("Banner Error:", e); numberSpan.innerText = '018XXXXXXXX'; }
         };
 
         window.copyNumber = () => {
             const num = numberSpan.innerText;
             if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(num).then(() => { showCopyToast(); }).catch(() => { fallbackCopyTextToClipboard(num); });
-            } else { fallbackCopyTextToClipboard(num); }
+                navigator.clipboard.writeText(num).then(() => { showCopyToast('পেমেন্ট নম্বর কপি হয়েছে!'); }).catch(() => { fallbackCopyTextToClipboard(num, 'পেমেন্ট নম্বর কপি হয়েছে!'); });
+            } else { fallbackCopyTextToClipboard(num, 'পেমেন্ট নম্বর কপি হয়েছে!'); }
         };
 
-        function fallbackCopyTextToClipboard(text) {
+        function fallbackCopyTextToClipboard(text, successMsg) {
             const textArea = document.createElement("textarea");
             textArea.value = text;
             textArea.style.top = "0"; textArea.style.left = "0";
             textArea.style.position = "fixed"; textArea.style.opacity = "0";
             document.body.appendChild(textArea);
             textArea.focus(); textArea.select();
-            try { document.execCommand('copy') ? showCopyToast() : showToast("❌ কপি সম্ভব হয়নি।", true); } catch (err) { showToast("❌ কপি সম্ভব হয়নি।", true); }
+            try { document.execCommand('copy') ? showCopyToast(successMsg) : showToast("❌ কপি সম্ভব হয়নি।", true); } catch (err) { showToast("❌ কপি সম্ভব হয়নি।", true); }
             document.body.removeChild(textArea);
         }
 
-        function showCopyToast() {
+        function showCopyToast(msg) {
             const toast = document.getElementById('toastMsg');
-            toast.innerHTML = '<i class="fa-solid fa-check-circle text-green-400 mr-2"></i> নম্বর কপি হয়েছে!';
+            toast.innerHTML = `<i class="fa-solid fa-check-circle text-green-400 mr-2"></i> ${msg}`;
             toast.style.background = "#10b981";
             toast.className = "toast-custom show";
             setTimeout(() => { toast.className = "toast-custom"; }, 2500);
@@ -95,31 +95,50 @@
 
         window.sendPayment = async () => {
             const trx = trxInput.value.trim().toUpperCase();
+            const enteredGmail = gmailInput.value.trim();
+
             if(!trx) return showToast("❌ TrxID লিখুন!", true);
+            if(!enteredGmail) return showToast("❌ জিমেইল বসান!", true);
             
             submitBtn.disabled = true;
             submitBtn.innerHTML = `<span class="loading-spinner"></span> যাচাই হচ্ছে...`;
 
             try {
-                if(orderId && orderId !== 'Direct Payment') {
-                    const orderRef = doc(db, "orders", orderId);
-                    const orderSnap = await getDoc(orderRef);
-                    if(orderSnap.exists()) {
-                        await updateDoc(orderRef, {
-                            transactionId: trx, paymentMethod: method, paymentStatus: "verified", status: "processing", updatedAt: serverTimestamp()
-                        });
-                    } else { throw new Error("Order not found"); }
+                const q1 = query(collection(db, "orders"), where("transactionId", "==", trx));
+                const q1Snapshot = await getDocs(q1);
+                const q2 = query(collection(db, "addMoneyRequests"), where("transactionId", "==", trx));
+                const q2Snapshot = await getDocs(q2);
+
+                if (!q1Snapshot.empty || !q2Snapshot.empty) {
+                    showToast("❌ এই ট্রানজেকশন আইডি আগে ব্যবহার করা হয়েছে!", true);
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = "Confirm & Submit";
+                    return;
+                }
+
+                if (reqType === 'order' && orderId) {
+                    await setDoc(doc(db, "orders", orderId), {
+                        orderId: orderId, userId: userId, userName: userName,
+                        userEmail: enteredGmail, offerId: offerId, offerName: offerName,
+                        offerImage: offerImage, playerUid: playerUid, amount: Number(amount),
+                        paymentMethod: method, transactionId: trx,
+                        status: "pending", paymentStatus: "verified",
+                        createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+                    }, { merge: true });
                 } else {
                     const reqId = "RTB-ADD-" + Date.now();
                     await setDoc(doc(db, "addMoneyRequests", reqId), {
-                        requestId: reqId, userId: "guest", userName: "Guest User", userEmail: "guest@example.com",
-                        amount: Number(amount), method: method, transactionId: trx, status: "pending", createdAt: serverTimestamp()
+                        requestId: reqId, userId: userId, userName: userName,
+                        userEmail: enteredGmail, amount: Number(amount),
+                        method: method, transactionId: trx, status: "pending", 
+                        createdAt: serverTimestamp()
                     });
                 }
 
                 paymentForm.classList.add('hidden');
                 successScreen.classList.remove('hidden');
                 startCountdown(300);
+
             } catch (e) {
                 console.error(e);
                 showToast("❌ ত্রুটি হয়েছে: " + e.message, true);
@@ -144,16 +163,16 @@
             toast.className = "toast-custom show"; setTimeout(() => { toast.className = "toast-custom"; }, 2500);
         };
 
-        loadBanners(); loadPaymentNumber();
+        loadBanners();
         trxInput.addEventListener("input", function() { this.value = this.value.toUpperCase(); });
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,600;14..32,800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
         * { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
-        .bkash-gradient { background: linear-gradient(135deg, #D12053 0%, #a51742 100%); }
-        .bkash-border { border-color: #D12053; }
-        .bkash-text { color: #D12053; }
+        .bkash-gradient { background: linear-gradient(135deg, #E2136E 0%, #a51742 100%); }
+        .bkash-border { border-color: #E2136E; }
+        .bkash-text { color: #E2136E; }
         .toast-custom { visibility: hidden; min-width: 280px; color: white; text-align: center; border-radius: 2rem; padding: 14px 20px; position: fixed; z-index: 1000; bottom: 30px; left: 50%; transform: translateX(-50%) scale(0.9); opacity: 0; transition: all 0.25s ease; font-weight: 600; backdrop-filter: blur(8px); box-shadow: 0 20px 25px -12px rgba(0,0,0,0.3); font-size: 15px; display: flex; align-items: center; justify-content: center;}
         .toast-custom.show { visibility: visible; opacity: 1; transform: translateX(-50%) scale(1); }
         .loading-spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 0.6s linear infinite; margin-right: 8px; }
@@ -162,34 +181,41 @@
         @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        .banner-img { width: 150px; height: 90px; object-fit: cover; border-radius: 12px; flex-shrink: 0; border: 1px solid #eee; }
+        .banner-img { width: 140px; height: 180px; object-fit: cover; border-radius: 12px; flex-shrink: 0; border: 1px solid #eee; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
     </style>
 </head>
-<body class="bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center min-h-screen p-4">
+<body class="bg-gray-50 flex items-center justify-center min-h-screen p-4">
 
     <div class="max-w-md w-full">
-        <div class="bg-white rounded-3xl shadow-2xl overflow-hidden">
+        <div class="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
+            
+            <!-- Header -->
             <div class="bkash-gradient p-6 flex justify-between items-center">
-                <div class="flex items-center gap-2">
-                    <div class="bg-white/20 backdrop-blur-sm p-2 rounded-xl">
-                        <svg class="w-8 h-8 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 4c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm0 13c-2.33 0-4.31-1.46-5.11-3.5h10.22c-.8 2.04-2.78 3.5-5.11 3.5z"/></svg>
+                <div class="flex items-center gap-3">
+                    <div class="bg-white p-2 rounded-xl shadow-sm">
+                        <svg class="w-8 h-8" viewBox="0 0 24 24" fill="#E2136E"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 4c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm0 13c-2.33 0-4.31-1.46-5.11-3.5h10.22c-.8 2.04-2.78 3.5-5.11 3.5z"/></svg>
                     </div>
-                    <span class="text-white font-black text-xl tracking-tight">bKash Merchant</span>
+                    <div>
+                        <h1 class="text-white font-black text-lg tracking-tight leading-tight">bKash Personal</h1>
+                        <p class="text-white/80 text-[10px] font-bold tracking-widest uppercase">ROMAN TOPUP BD</p>
+                    </div>
                 </div>
                 <div class="text-white text-right">
-                    <p class="text-[10px] uppercase font-bold opacity-80 tracking-[0.15em]">Payable Amount</p>
-                    <h2 class="text-3xl font-black tracking-tight">৳ <span id="display-amount" class="tabular-nums">0</span></h2>
+                    <p class="text-[10px] uppercase font-bold opacity-80 tracking-[0.15em]">Payable</p>
+                    <h2 class="text-2xl font-black tracking-tight">৳ <span id="display-amount" class="tabular-nums">0</span></h2>
                 </div>
             </div>
 
             <div id="payment-form" class="py-6">
-                <div class="px-6 mb-3">
-                    <div class="bg-gray-100 rounded-xl p-2 text-center text-xs flex justify-center items-center gap-1">
+                <!-- Order Info -->
+                <div class="px-6 mb-4">
+                    <div class="bg-gray-50 rounded-xl p-3 text-center text-xs flex justify-center items-center gap-1 border border-gray-200">
                         <span class="text-gray-500 font-bold">অর্ডার আইডি:</span>
-                        <span id="order-id" class="font-mono font-bold text-gray-800">Direct Payment</span>
+                        <span id="order-id" class="font-mono font-bold text-gray-800">লোড হচ্ছে...</span>
                     </div>
                 </div>
 
+                <!-- Instructions Banners (5 Pics) -->
                 <div class="px-6 mb-6">
                     <label class="text-[11px] font-bold text-gray-500 uppercase tracking-widest block mb-3 ml-1">কিভাবে পেমেন্ট করবেন?</label>
                     <div id="banner-list" class="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
@@ -199,37 +225,49 @@
                 </div>
 
                 <div class="px-6">
-                    <div class="bg-pink-50 border-l-[5px] bkash-border p-4 rounded-2xl mb-7">
-                        <div class="flex items-start gap-3">
-                            <span class="bkash-text text-xl">📌</span>
-                            <p class="text-xs font-semibold text-gray-700 leading-relaxed">
-                                <span class="font-black bkash-text">Send Money</span> করুন নিচের নম্বরে। টাকা পাঠানোর পর <span class="font-bold">TrxID</span> টি দিন।
-                            </p>
+                    <!-- Warning Note -->
+                    <div class="bg-red-50 border border-red-100 p-3 rounded-xl mb-6 flex items-start gap-2">
+                        <i class="fa-solid fa-triangle-exclamation text-red-500 mt-0.5"></i>
+                        <p class="text-xs font-bold text-red-700 leading-relaxed">
+                            এই নাম্বারে শুধুমাত্র <span class="underline">সেন্ড মানি (Send Money)</span> করা যাবে। ভুল করে অন্য কিছু করলে পেমেন্ট বাতিল হবে।
+                        </p>
+                    </div>
+
+                    <!-- Gmail Input -->
+                    <div class="bg-pink-50 border border-dashed border-pink-300 rounded-xl p-4 mb-6">
+                        <label class="text-[10px] font-bold text-gray-600 uppercase tracking-widest block mb-2">আপনার জিমেইল বসান (Gmail)</label>
+                        <input type="email" id="gmail-input" placeholder="example@gmail.com" class="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:border-[#E2136E] font-semibold text-gray-800 text-sm">
+                        <div class="text-[10px] text-yellow-700 mt-2 flex items-start gap-1 font-semibold">
+                            <i class="fa-solid fa-circle-info mt-0.5"></i>
+                            <span>Gmail না বসালে পেমেন্ট ফেইলড হতে পারে।</span>
                         </div>
                     </div>
 
-                    <div class="mb-8">
+                    <!-- Payment Number -->
+                    <div class="mb-6">
                         <label class="text-[11px] font-bold text-gray-400 uppercase tracking-widest block mb-2 ml-1">পেমেন্ট নম্বর</label>
-                        <div onclick="copyNumber()" class="flex items-center justify-between bg-white p-5 rounded-2xl border-2 border-dashed border-pink-200 hover:border-[#D12053] cursor-pointer transition-all active:scale-95">
-                            <span id="display-number" class="text-3xl font-black tracking-tighter text-gray-800">লোড হচ্ছে...</span>
-                            <div class="bkash-gradient text-white p-2.5 rounded-xl">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
+                        <div onclick="copyNumber()" class="flex items-center justify-between bg-white p-4 rounded-2xl border-2 border-dashed border-pink-200 hover:border-[#E2136E] cursor-pointer transition-all active:scale-95 group">
+                            <span id="display-number" class="text-2xl font-black tracking-tighter text-gray-800">লোড হচ্ছে...</span>
+                            <div class="bkash-gradient text-white p-2 rounded-xl group-hover:scale-105 transition-transform">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
                             </div>
                         </div>
                     </div>
 
-                    <div class="space-y-6">
+                    <!-- TrxID Input & Submit -->
+                    <div class="space-y-5">
                         <div>
                             <label class="text-[11px] font-bold text-gray-400 uppercase ml-2 block mb-2 tracking-widest">Transaction ID (TrxID)</label>
-                            <input type="text" id="trx-input" placeholder="8N7A9X2K5L" class="w-full p-5 bg-gray-50 border-2 border-gray-200 focus:border-[#D12053] focus:outline-none text-center font-mono font-bold text-xl uppercase rounded-2xl transition-all">
+                            <input type="text" id="trx-input" placeholder="8N7A9X2K5L" class="w-full p-4 bg-gray-50 border-2 border-gray-200 focus:border-[#E2136E] focus:outline-none text-center font-mono font-bold text-lg uppercase rounded-xl transition-all">
                         </div>
-                        <button id="submit-btn" onclick="sendPayment()" class="w-full bkash-gradient text-white font-bold py-5 rounded-2xl shadow-lg uppercase text-sm tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2">
+                        <button id="submit-btn" onclick="sendPayment()" class="w-full bkash-gradient text-white font-bold py-4 rounded-xl shadow-lg uppercase text-sm tracking-widest active:scale-95 transition-all flex items-center justify-center gap-2">
                             Confirm & Submit
                         </button>
                     </div>
                 </div>
             </div>
 
+            <!-- Success Screen -->
             <div id="success-screen" class="hidden py-10 px-6 text-center">
                 <div class="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
                     <svg class="w-12 h-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
@@ -243,12 +281,13 @@
                 <button onclick="window.close()" class="mt-8 text-gray-400 font-bold text-sm hover:text-gray-600 transition-colors">উইন্ডো বন্ধ করুন</button>
             </div>
 
-            <div class="bg-gray-50 p-4 text-center border-t">
+            <!-- Footer -->
+            <div class="bg-gray-50 p-4 text-center border-t border-gray-100">
                 <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">🔒 Secure Payment • ROMAN TOPUP BD</p>
             </div>
         </div>
     </div>
 
-    <div id="toastMsg" class="toast-custom">✨ কপি হয়েছে!</div>
+    <div id="toastMsg" class="toast-custom">✨ Copy Successful!</div>
 </body>
 </html>
